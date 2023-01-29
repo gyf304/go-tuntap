@@ -44,7 +44,13 @@ func TestTun(t *testing.T) {
 		&net.UDPAddr{IP: net.ParseIP("192.168.42.2"), Port: 1234},
 		&net.UDPAddr{IP: net.ParseIP("192.168.42.1"), Port: 1234},
 	)
-	s.Write([]byte("hello"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = s.Write([]byte("hello"))
+	if err != nil {
+		t.Fatal(err)
+	}
 	s.Close()
 	select {
 	case err := <-ch:

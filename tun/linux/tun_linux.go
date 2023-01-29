@@ -12,8 +12,12 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+func init() {
+	tun.Register(&tunLinuxImpl{})
+}
+
 type ifReq struct {
-	Name  [0x10]byte
+	Name  [unix.IFNAMSIZ]byte
 	Flags uint16
 	pad   [0x28 - 0x10 - 2]byte
 }
@@ -51,6 +55,8 @@ func createInterface(fd uintptr, ifName string, flags uint16) (createdIFName str
 	return
 }
 
+type tunLinuxImpl struct{}
+
 type tunLinux struct {
 	*os.File
 	name string
@@ -59,6 +65,7 @@ type tunLinux struct {
 type socketAddrRequest struct {
 	name [unix.IFNAMSIZ]byte
 	addr unix.RawSockaddrInet4
+	_    [8]byte
 }
 
 type socketFlagsRequest struct {
@@ -78,8 +85,14 @@ func (t *tunLinux) SetIPAddresses(addresses []netip.Prefix) error {
 	if !addresses[0].Addr().Is4() {
 		return errors.New("tun: only IPv4 supported")
 	}
-	fd := t.File.Fd()
-	var err error
+
+	fd, err := unix.Socket(unix.AF_INET, unix.SOCK_DGRAM, unix.IPPROTO_IP)
+	if err != nil {
+		return err
+	}
+	defer unix.Close(fd)
+
+	fdUintPtr := uintptr(fd)
 
 	var sa socketAddrRequest
 	copy(sa.name[:], t.name)
@@ -91,7 +104,7 @@ func (t *tunLinux) SetIPAddresses(addresses []netip.Prefix) error {
 	copy(sa.addr.Addr[:], addr[:4])
 
 	// set addr
-	if err = ioctl(fd, unix.SIOCSIFADDR, uintptr(unsafe.Pointer(&sa))); err != nil {
+	if err = ioctl(fdUintPtr, unix.SIOCSIFADDR, uintptr(unsafe.Pointer(&sa))); err != nil {
 		return err
 	}
 
@@ -105,14 +118,26 @@ func (t *tunLinux) SetIPAddresses(addresses []netip.Prefix) error {
 	sa.addr.Addr[1] = byte(mask >> 16)
 	sa.addr.Addr[2] = byte(mask >> 8)
 	sa.addr.Addr[3] = byte(mask)
-	if err = ioctl(fd, unix.SIOCSIFNETMASK, uintptr(unsafe.Pointer(&sa))); err != nil {
+	if err = ioctl(fdUintPtr, unix.SIOCSIFNETMASK, uintptr(unsafe.Pointer(&sa))); err != nil {
+		return err
+	}
+
+	// up the interface
+	var sf socketFlagsRequest
+	copy(sf.name[:], t.name)
+	sf.flags = unix.IFF_UP
+	if err = ioctl(fdUintPtr, unix.SIOCSIFFLAGS, uintptr(unsafe.Pointer(&sf))); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func openTunLinux(name string) (tun tun.TUN, err error) {
+func (t *tunLinuxImpl) Name() string {
+	return "tun"
+}
+
+func (t *tunLinuxImpl) Open(name string) (tun tun.TUN, err error) {
 	var fdInt int
 	if fdInt, err = syscall.Open(
 		"/dev/net/tun", os.O_RDWR|syscall.O_NONBLOCK, 0); err != nil {
@@ -125,7 +150,7 @@ func openTunLinux(name string) (tun tun.TUN, err error) {
 	}
 
 	return &tunLinux{
-		File: os.NewFile(uintptr(fdInt), "tun"),
+		File: os.NewFile(uintptr(fdInt), name),
 		name: name,
 	}, nil
 }
