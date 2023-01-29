@@ -1,0 +1,5 @@
+package wintun
+
+func init() {
+
+}
