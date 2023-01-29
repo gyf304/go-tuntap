@@ -1,4 +1,4 @@
-module github.com/gyf304/tuntap
+module github.com/gyf304/go-tuntap
 
 go 1.19
 

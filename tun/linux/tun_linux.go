@@ -8,7 +8,7 @@ import (
 	"syscall"
 	"unsafe"
 
-	"github.com/gyf304/tuntap/tun"
+	"github.com/gyf304/go-tuntap/tun"
 	"golang.org/x/sys/unix"
 )
 

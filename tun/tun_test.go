@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gyf304/tuntap/tun"
-	_ "github.com/gyf304/tuntap/tun/linux"
-	_ "github.com/gyf304/tuntap/tun/wintun"
+	"github.com/gyf304/go-tuntap/tun"
+	_ "github.com/gyf304/go-tuntap/tun/linux"
+	_ "github.com/gyf304/go-tuntap/tun/wintun"
 )
 
 func TestTun(t *testing.T) {
